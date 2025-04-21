@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PolyShift Cipher App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes glow {
+      0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+      50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+      100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+    }
+    .glow:hover { animation: glow 1.5s infinite; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+  <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg">
+    <h1 class="text-3xl font-extrabold text-center mb-6 text-blue-400">PolyShift Cipher</h1>
+    <div class="mb-6">
+      <label for="text" class="block text-sm font-medium text-gray-300">Input Text</label>
+      <textarea id="text" rows="4" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"></textarea>
+    </div>
+    <div class="mb-6">
+      <label for="key" class="block text-sm font-medium text-gray-300">Key (6-12 characters)</label>
+      <input type="text" id="key" maxlength="12" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50" placeholder="Enter key">
+    </div>
+    <div class="flex justify-between mb-6">
+      <button onclick="encrypt()" class="bg-blue-600 text-white px-6 py-2 rounded-md glow hover:bg-blue-700 transition duration-300">Encrypt</button>
+      <button onclick="decrypt()" class="bg-green-600 text-white px-6 py-2 rounded-md glow hover:bg-green-700 transition duration-300">Decrypt</button>
+    </div>
+    <div>
+      <label for="result" class="block text-sm font-medium text-gray-300">Result</label>
+      <textarea id="result" rows="4" readonly class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm"></textarea>
+    </div>
+    <div class="mt-4 text-center">
+      <p class="text-sm text-gray-400">Key Hash: <span id="keyHash" class="text-blue-400"></span></p>
+    </div>
+  </div>
+  <script>
+    const polybius = [
+      ['a', 'b', 'c', 'd', 'e'],
+      ['f', 'g', 'h', 'i', 'j'],
+      ['k', 'l', 'm', 'n', 'o'],
+      ['p', 'q', 'r', 's', 't'],
+      ['u', 'v', 'w', 'x', 'y']
+    ];
+    const polybiusReverse = {};
+    polybius.forEach((row, i) => row.forEach((char, j) => polybiusReverse[char] = `${i}${j}`));
+
+    function generateSubstitution(key) {
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      let hash = 0;
+      for (let char of key) hash = (hash * 31 + char.charCodeAt(0)) % 1000000;
+      const shuffled = alphabet.split('').sort(() => (hash % 2 ? 1 : -1));
+      hash = (hash * 31) % 1000000;
+      const sub = {};
+      alphabet.split('').forEach((c, i) => sub[c] = shuffled[i]);
+      return { sub, reverse: Object.fromEntries(Object.entries(sub).map(([k, v]) => [v, k])) };
+    }
+
+    function getShift(key) {
+      let sum = 0;
+      for (let char of key) sum += char.charCodeAt(0);
+      return sum % 25 + 1;
+    }
+
+    function encrypt() {
+      const text = document.getElementById('text').value.toLowerCase();
+      const key = document.getElementById('key').value.toLowerCase();
+      if (!text || key.length < 6 || key.length > 12 || !/^[a-z0-9]+$/.test(key)) {
+        alert('Please enter valid text and a key (6-12 alphanumeric characters)');
+        return;
+      }
+      const { sub } = generateSubstitution(key);
+      const shift = getShift(key);
+      let result = '';
+      for (let char of text) {
+        if (/[a-z]/.test(char)) {
+          let subChar = sub[char] || char;
+          let poly = polybiusReverse[subChar] || '00';
+          let shifted = poly.split('').map(d => (parseInt(d) + shift) % 5).join('');
+          result += shifted;
+        } else {
+          result += char;
+        }
+      }
+      document.getElementById('result').value = result;
+      document.getElementById('keyHash').textContent = key.slice(0, 3) + '...';
+    }
+
+    function decrypt() {
+      const text = document.getElementById('text').value.toLowerCase();
+      const key = document.getElementById('key').value.toLowerCase();
+      if (!text || key.length < 6 || key.length > 12 || !/^[a-z0-9]+$/.test(key)) {
+        alert('Please enter valid text and a key (6-12 alphanumeric characters)');
+        return;
+      }
+      const { reverse } = generateSubstitution(key);
+      const shift = getShift(key);
+      let result = '';
+      for (let i = 0; i < text.length; i += 2) {
+        let pair = text.slice(i, i + 2);
+        if (/^\d\d$/.test(pair)) {
+          // Reverse shift on polybius digits
+          let digits = pair.split('').map(d => (parseInt(d) - shift + 5) % 5);
+          let row = digits[0], col = digits[1];
+          // Get polybius character
+          let polyChar = polybius[row]?.[col] || 'a';
+          // Reverse substitution
+          result += reverse[polyChar] || polyChar;
+        } else {
+          result += text[i];
+          i--;
+        }
+      }
+      document.getElementById('result').value = result;
+      document.getElementById('keyHash').textContent = key.slice(0, 3) + '...';
+    }
+  </script>
+</body>
+</html>
